@@ -1,0 +1,197 @@
+# ============================================================
+#  Configuracion del proyecto (app1) - se edita SOLO este archivo
+#  cuando cambien rutas, ubicacion o parametros.
+#
+#  2 casos reales, mismo sitio (Universidad de Narino), cada uno con su
+#  propio par satelital-terrestre del mismo periodo:
+#   - "udenar" (2023): Solcast 2023 + estacion derivada de la potencia
+#     del inversor (ver preparar_udenar_ghi.py) -- solo GHI, arranca
+#     jul-2023, muy limpia fisicamente.
+#   - "udenar_est" (2025): Solcast 2025 + estacion meteorologica REAL
+#     (GHI + humedad/temperatura/viento) -- cubre el año completo, y
+#     tiene un quiebre de regimen real documentado (oct-dic 2025).
+# ============================================================
+
+# --- Ubicacion del sitio ---
+# Coordenadas y altitud reales de la estacion/inversor de la Universidad
+# de Narino (campus Torobajo).
+sitio:
+  nombre: "Universidad de Narino (Udenar)"
+  latitud: 1.2332026137776049     # grados norte
+  longitud: -77.29287682225166    # grados oeste (negativo)
+  altitud_m: 2451        # metros sobre el nivel del mar
+  timezone: "America/Bogota"
+
+# --- Archivos de entrada (relativos a la carpeta del proyecto) ---
+# NOTA: cada fuente terrestre tiene su PROPIO archivo satelital emparejado
+# (mismo periodo/año) -- no todas comparten un unico Solcast. "udenar"
+# (derivada del inversor, 2023) se empareja con Solcast 2023; "udenar_est"
+# (estacion meteorologica real, 2025) se empareja con Solcast 2025. Ver
+# 'satelital_por_fuente' mas abajo, que mapea cada fuente terrestre a la
+# clave de su satelital correspondiente en este bloque.
+datos:
+  solcast_raw: "data/raw/solcast2023PT5M_Udenar.csv"       # Solcast 2023 -- pareja de "udenar"
+  udenar_raw: "data/raw/udenar.csv"                         # Udenar (inversor), 2023
+  solcast_2025_raw: "data/raw/solcast2025PT5M_Udenar.csv"   # Solcast 2025 -- pareja de "udenar_est"
+  udenar_est_raw: "data/raw/udenar_est.csv"                 # Udenar (estacion real), 2025
+
+# Fuente terrestre -> clave (en el bloque 'datos' de arriba) de su archivo
+# satelital emparejado. Si una fuente terrestre no aparece aqui, se asume
+# "solcast_raw" (comportamiento por defecto, compatible con antes).
+satelital_por_fuente:
+  udenar: "solcast_raw"
+  udenar_est: "solcast_2025_raw"
+
+# --- Carpetas de salida ---
+salidas:
+  interim: "data/interim"
+  processed: "data/processed"
+  outputs: "outputs"
+
+# --- Parametros del site-adaptation ---
+site_adaptation:
+  # NOTA: este "resolucion" es solo para el pipeline CLASICO
+  # (emparejar_horario(), Anexo) -- ya no se ejecuta en app1 (los archivos
+  # que necesita, p.ej. solcast_alvernia_pareado_1h.csv, no existen aqui).
+  # La resolucion REAL que usa app_1.py es site_adaptation.reconstruccion.resolucion
+  # (ver abajo).
+  resolucion: "1h"
+  fraccion_train: 0.70      # 70% inicial entrena, 30% final evalua
+  random_state: 42
+  # Ventana de analisis para el pipeline CLASICO (emparejar_horario(), no
+  # el generico de reconstruccion). Acotada al rango real de udenar.csv
+  # (1-jul a 31-dic-2023) -- Solcast cubre mas atras (fines de 2022) pero
+  # no sirve de nada emparejar fechas donde la fuente terrestre no existe.
+  periodo_inicio: "2023-07-01"
+  periodo_fin: "2023-12-31"
+  cobertura_minima_horaria: 0.8
+
+  # ------------------------------------------------------------
+  # RECONSTRUCCION INVERSA (pivote OE2/OE3): la fuente satelital se
+  # usa como referencia ESTABLE para corregir y rellenar huecos en
+  # la fuente terrestre (aqui, la estacion de la Universidad de
+  # Narino). Este es el pipeline generico que SI usa app_1.py --
+  # no depende de periodo_inicio/periodo_fin de arriba (se filtra
+  # dato por dato segun la bandera de usabilidad).
+  #
+  # resolucion: "5min" -- resolucion NATIVA de Solcast y de udenar.csv
+  # (ambas fuentes ya vienen muestreadas cada 5 min en la misma rejilla
+  # horaria). Se decidio trabajar el proyecto completo a esta resolucion
+  # -- NO a promedios de 1h -- porque promediar a 1h ocultaba un problema
+  # real: el modelo ganador puede lucir casi perfecto en promedio horario
+  # y aun asi producir un % relevante de valores fisicamente imposibles
+  # (o de banderas de control de calidad) cuando se aplica a los datos
+  # a su resolucion real. Ver evaluate.evaluar_consistencia_fisica_aplicacion().
+  # ------------------------------------------------------------
+  reconstruccion:
+    resolucion: "5min"
+    # "udenar": estacion derivada del inversor, 2023 (limpia, pero con
+    # arranque tardio en jul-2023 -- ver marco metodologico de Inicio).
+    # "udenar_est": estacion meteorologica REAL de la Universidad de
+    # Narino, 2025 (humedad/temperatura/viento ademas de GHI -- activa
+    # el test de sensor_caido, NO_EVALUABLE en "udenar"). Mas "sucia":
+    # tiene un quiebre de regimen real y documentado (ver exclusiones).
+    fuentes_terrestres: ["udenar", "udenar_est"]
+    variantes: ["selectiva", "total"]
+    # Ventanas a EXCLUIR del entrenamiento/evaluacion (eventos de cambio
+    # de regimen ya documentados). Solo afectan que datos se usan para
+    # ENTRENAR/EVALUAR -- el modelo igual se aplica sobre esas ventanas
+    # para reconstruir la serie completa.
+    exclusiones:
+      udenar_est:
+        desde: "2025-10-01"   # quiebre de regimen confirmado (proyecto
+                               # original, Pieza 5c): sesgo +22.8 (sep) ->
+                               # +4.1 (oct) -> -26.3 (nov) -> -13.4 (dic)
+                               # W/m2; correlacion cae de ~0.97 a 0.90/0.74.
+    criterio_seleccion: ["fisicamente_valido", "pct_banderas_post", "RMSE"]
+
+# ============================================================
+#  Umbrales del Control de Calidad (QC)
+#  Basados en Forstinger et al. (2021) "Expert quality control
+#  of solar radiation ground data sets", que a su vez recoge los
+#  limites BSRN (Long & Dutton 2002). Cada numero tiene su fuente.
+#  (Identico al proyecto original -- estos umbrales no dependen de
+#  cuantas fuentes/estaciones haya.)
+# ============================================================
+qc_fisico:
+
+  # --- Prueba de valores negativos ---
+  minimo_irradiancia: -4.0      # W/m2. Fuente: BSRN limites fisicamente posibles.
+
+  # --- Prueba nocturna ---
+  elevacion_noche_grados: 0.0   # sol bajo el horizonte = noche.
+  max_irradiancia_noche: 10.0   # W/m2. Tolerancia por luz crepuscular/ruido.
+
+  # --- Limites fisicamente posibles BSRN (Tab. 4 de Forstinger 2021) ---
+  ppl_ghi_c1: 1.5
+  ppl_ghi_c2: 1.2
+  ppl_ghi_c3: 100.0
+  ppl_dhi_c1: 0.95
+  ppl_dhi_c2: 1.2
+  ppl_dhi_c3: 50.0
+  ppl_dni_factor: 1.0
+
+  # --- Limites extremadamente raros BSRN (Tab. 3 de Forstinger 2021) ---
+  erl_ghi_c1: 1.2
+  erl_ghi_c2: 1.2
+  erl_ghi_c3: 50.0
+  erl_dhi_c1: 0.75
+  erl_dhi_c2: 1.2
+  erl_dhi_c3: 30.0
+  erl_dni_c1: 0.95
+  erl_dni_c2: 0.2
+  erl_dni_c3: 10.0
+  minimo_erl: -2.0              # W/m2. Limite inferior extremely-rare.
+
+  # --- Sensor caido: requiere columnas TEMP y RH. udenar.csv (inversor,
+  # 2023) NO las trae -- test_sensor_caido() devuelve NO_EVALUABLE
+  # automaticamente para esa fuente (ver qc/physical.py), no falla.
+  # udenar_est.csv (estacion real, 2025) SI trae TEMP/RH, asi que en esa
+  # fuente esta prueba SI se evalua.
+  detectar_sensor_caido: true
+
+# ============================================================
+#  Umbrales del QC experto (Pieza 3)
+# ============================================================
+qc_experto:
+
+  # --- Cierre radiativo (Tab. 2 Forstinger) ---
+  cierre_ghi_min: 50.0          # W/m2. No evaluar por debajo (Forstinger).
+  cierre_tol_sza_baja: 0.08     # SZA <= 75 grados: tolerancia 8%
+  cierre_tol_sza_alta: 0.15     # SZA > 75 grados: tolerancia 15%
+  cierre_sza_corte: 75.0        # grados, frontera entre las dos tolerancias
+
+  # --- K-tests (Tab. 1 Forstinger) ---
+  ktests_ghi_min: 50.0          # W/m2. No evaluar GHI por debajo.
+  kt_max: 1.35                  # Kt = GHI/(ETN*cos SZA) no debe pasar 1.35
+  kn_factor: 1100.0             # Kn < (1100 + 0.03*ALT)/ETN
+  kn_alt_coef: 0.03
+  k_max_sza_baja: 1.05          # K=DHI/GHI < 1.05 con SZA < 75
+  k_max_sza_alta: 1.10          # K < 1.10 con SZA >= 75
+  k_kt_corte: 0.6               # para flagKKt: Kt > 0.6
+  k_max_kkt: 0.96               # K < 0.96 cuando Kt>0.6, GHI>150, SZA<85
+  kkt_ghi_min: 150.0
+  kkt_sza_max: 85.0
+
+  # --- Indice de cielo claro / CSI ---
+  csi_max: 1.35                 # CSI por encima = sospechoso (cloud enhancement aparte)
+  csi_ghi_min: 50.0             # no evaluar de noche / muy bajo
+
+  # --- Rate of change (tasa de cambio) ---
+  roc_max_wm2: 800.0            # W/m2 entre muestras. Saltos mayores = sospechoso.
+
+  # --- Persistencia (valores congelados, prueba "log-down") ---
+  # N=15 sigue la definicion de Forstinger et al. (2021): al menos 15
+  # valores identicos consecutivos en GHI/DNI durante el dia se consideran
+  # una falla de datalogger/sensor ("log-down"), sin exigir que el valor
+  # repetido supere ningun piso de magnitud -- un apagon puede congelar
+  # la lectura en cero tan facilmente como en un valor alto. El corte
+  # dia/noche (para no marcar el cero nocturno normal) se hace con
+  # elevacion solar, no con un umbral de GHI -- ver test_persistencia()
+  # en qc/expert.py. persistencia_ghi_min queda deprecado (ya no se usa).
+  persistencia_n: 15             # 15 muestras iguales seguidas (Forstinger et al. 2021)
+  persistencia_ghi_min: 50.0     # DEPRECADO -- ver comentario arriba
+
+  # --- Simetria AM/PM ---
+  simetria_tol: 0.15            # diferencia relativa AM/PM aceptable (15%)
+  simetria_min_dias_validos: 10 # minimo de dias para que el diagnostico sea valido

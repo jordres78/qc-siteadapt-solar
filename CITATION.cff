@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "Si usa este software, por favor cite el trabajo asociado."
+title: "qc-siteadapt-solar: control de calidad y site-adaptation de datos de recurso solar"
+abstract: >-
+  Paquete de Python y aplicación web que encadenan el control de calidad de
+  series de irradiancia bajo el protocolo BSRN, la reconstrucción del dato
+  terrestre a partir del satelital mediante site-adaptation con un criterio de
+  selección de modelo basado en la validez física de las predicciones sobre
+  todo el periodo de aplicación y en el menor error, y la verificación de la
+  serie reconstruida
+  con el mismo control de calidad aplicado a la entrada.
+type: software
+license: MIT
+authors:
+  - family-names: "Chamorro Enríquez"
+    given-names: "Jorge Andrés"
+    affiliation: "Universidad de Nariño"
+    email: "jordres78@udenar.edu.co"
+keywords:
+  - control de calidad
+  - irradiancia solar
+  - site-adaptation
+  - aprendizaje automático
+  - BSRN
+  - recurso solar
+references:
+  - type: thesis
+    title: >-
+      Análisis del desempeño de la aplicación de técnicas de control de calidad
+      y site-adaptation en datos de recurso solar
+    authors:
+      - family-names: "Chamorro Enríquez"
+        given-names: "Jorge Andrés"
+    institution:
+      name: "Universidad de Nariño"
+    thesis-type: "Trabajo de grado de Maestría en Ingeniería Electrónica"
+    year: 2026

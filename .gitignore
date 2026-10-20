@@ -1,0 +1,62 @@
+# ============================================================
+#  qc-siteadapt-solar — archivos que NO se versionan
+# ============================================================
+
+# --- Entornos virtuales ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Bytecode y cachés de Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Artefactos de empaquetado ---
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# --- Datos ---
+# El repositorio no distribuye datos. Los de Solcast son un producto
+# comercial y los de la Universidad de Nariño se entregan por solicitud
+# (ver README). Se versiona la estructura de carpetas y el código que
+# prepara los datos, pero no los datos en sí.
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+!data/raw/*.py
+
+# --- Resultados generados por el pipeline ---
+# Se regeneran ejecutando los scripts; no tiene sentido versionarlos.
+outputs/figuras/*
+outputs/tablas/*
+!outputs/**/.gitkeep
+
+# --- Secretos de Streamlit ---
+.streamlit/secrets.toml
+app/.streamlit/secrets.toml
+
+# --- Notas de trabajo locales ---
+bitacora_*.md
+
+# --- Scripts obsoletos que no forman parte del pipeline ---
+verificar_pieza7c_reconstruccion_5min.py
+
+# --- Copias de respaldo locales ---
+*.bak
+*.bak_*
+
+# --- Editores y sistema operativo ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

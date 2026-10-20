@@ -1,0 +1,25 @@
+[project]
+name = "qcsolar"
+version = "0.1.0"
+description = "Control de calidad y site-adaptation de datos de recurso solar - app1 (2 fuentes: satelital + terrestre, Universidad de Narino) - Trabajo de grado de Maestria en Ingenieria Electronica, UDENAR"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "pvlib>=0.10",
+    "scikit-learn>=1.3",
+    "pyyaml>=6.0",
+    "plotly>=5.0",
+    "xgboost>=2.0",
+]
+
+[project.optional-dependencies]
+app = ["streamlit>=1.30"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
