@@ -79,7 +79,7 @@ ventanas de exclusión viven en `config.yaml`.
 Requiere Python 3.10 o superior.
 
 ```bash
-git clone https://github.com/<usuario>/qc-siteadapt-solar.git
+git clone https://github.com/jordres78/qc-siteadapt-solar.git
 cd qc-siteadapt-solar
 
 python -m venv .venv

@@ -11,6 +11,7 @@ abstract: >-
   con el mismo control de calidad aplicado a la entrada.
 type: software
 license: MIT
+repository-code: "https://github.com/jordres78/qc-siteadapt-solar"
 authors:
   - family-names: "Chamorro Enríquez"
     given-names: "Jorge Andrés"
