@@ -3416,7 +3416,7 @@ def render_oe2_marco_metodologico():
             (98.66-98.67 W/m²) y sin ninguna predicción inválida en todo el
             período de aplicación (0 de 104.825 muestras).
 
-            Resumen (V11): RMSE = 98.60 W/m² en Udenar 2023 y
+            Resumen: RMSE = 98.60 W/m² en Udenar 2023 y
             111.43 W/m² en Udenar 2025, con 0 % de predicciones inválidas en
             todo el período de aplicación. Es el **modelo ganador** en ambos
             conjuntos: la corrección que necesita Solcast en el sitio es
