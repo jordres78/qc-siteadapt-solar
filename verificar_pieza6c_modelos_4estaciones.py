@@ -128,7 +128,8 @@ def main():
             continue
 
         train, test = prep.split_temporal(supervisado)
-        print(f"   Muestras supervisadas ({FREQ}): {len(supervisado):,} (train={len(train):,}, test={len(test):,})")
+        print(f"   Muestras supervisadas ({FREQ}): {len(supervisado):,} (train={len(train):,}, test={len(test):,}, "
+              f"test diurno={int(ev.mascara_diurna(test).sum()):,})")
 
         target = f"GHI_{clave}"
         columnas_disp = [c for c in COLUMNAS_PREDICTORAS if c in supervisado.columns]
@@ -183,7 +184,13 @@ def main():
                 print(coefs.to_string(index=False))
                 report.guardar_tabla(coefs, f"reconstruccion_{clave}_coeficientes.csv")
 
-        report.guardar_dataset(predicciones_test, f"reconstruccion_{clave}_predicciones_test.csv",
+        # Se guarda la elevación solar junto a las predicciones para que las
+        # figuras de diagnóstico usen los mismos instantes diurnos que las
+        # métricas de test.
+        _pred_guardar = predicciones_test.copy()
+        _pred_guardar["elevacion_solar"] = test[ev.COLUMNAS_ELEVACION[0]].to_numpy() \
+            if ev.COLUMNAS_ELEVACION[0] in test.columns else float("nan")
+        report.guardar_dataset(_pred_guardar, f"reconstruccion_{clave}_predicciones_test.csv",
                                 etapa="processed")
 
     if todas_metricas:

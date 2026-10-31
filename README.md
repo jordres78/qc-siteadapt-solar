@@ -36,7 +36,10 @@ temporal, una satelital y una terrestre, y las procesa en este orden:
    *XGBoost* y perceptrón multicapa) y selecciona, entre los modelos que no
    superan una tolerancia de predicciones fuera de los límites físicos
    (evaluada sobre todo el periodo de aplicación y no solo sobre el conjunto
-   de prueba), el de menor RMSE en prueba.
+   de prueba), el de menor RMSE en prueba. Las métricas de prueba (RMSE, MAE,
+   MBE, R² y r) se calculan solo con los instantes en que el sol está sobre el
+   horizonte, para que las horas nocturnas, en las que ambas series valen cero,
+   no reduzcan artificialmente el error.
 
 3. **Verificación.** Vuelve a aplicar el módulo de control de calidad, con los
    mismos umbrales, sobre la serie reconstruida.

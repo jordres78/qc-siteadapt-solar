@@ -7,7 +7,10 @@ reconstrucción y re-verificación de la serie terrestre corregida.
 Todos los modelos se entrenan en TRAIN y se evalúan ÚNICAMENTE en TEST:
 ninguna métrica de desempeño se calcula sobre datos que el modelo vio
 durante el entrenamiento (evita la fuga de datos y la sobreestimación de
-la mejora).
+la mejora). Por defecto las métricas de TEST usan solo los instantes con
+el sol sobre el horizonte (elevación > 0°, la misma frontera día/noche del
+QC físico). De noche la medición y la predicción valen casi cero, y esos
+pares reducirían artificialmente el error promedio.
 
 Selección: se descarta todo modelo cuyas predicciones sobre el periodo
 de aplicación completo violen las pruebas físicas; entre los válidos gana
@@ -26,14 +29,38 @@ from ..qc import expert as qce
 from ..qc import usability as qcu
 
 
+COLUMNAS_ELEVACION = ("elevation_solcast", "elevation")
+
+
+def mascara_diurna(df: pd.DataFrame, col_elevacion: str | None = None) -> np.ndarray:
+    """
+    Devuelve un arreglo booleano que vale True en los instantes con el sol
+    sobre el horizonte (elevación > 0°). Usa `col_elevacion` si se indica;
+    si no, la primera columna de COLUMNAS_ELEVACION presente o, en su
+    defecto, la primera que empiece por "elevation". Si `df` no tiene
+    ninguna columna de elevación, devuelve True en todas las filas.
+    """
+    if col_elevacion is None:
+        candidatas = [c for c in COLUMNAS_ELEVACION if c in df.columns]
+        candidatas += [c for c in df.columns if str(c).startswith("elevation") and c not in candidatas]
+        col_elevacion = candidatas[0] if candidatas else None
+    if col_elevacion is None or col_elevacion not in df.columns:
+        return np.ones(len(df), dtype=bool)
+    return (pd.to_numeric(df[col_elevacion], errors="coerce") > 0).to_numpy()
+
+
 def entrenar_y_evaluar(train: pd.DataFrame, test: pd.DataFrame, target: str,
-                        columnas_predictoras: list[str], random_state: int = 42):
+                        columnas_predictoras: list[str], random_state: int = 42,
+                        solo_diurno: bool = True, col_elevacion: str | None = None):
     """
     Entrena TODOS los modelos candidatos sobre `train` y los evalúa sobre `test`.
 
     Devuelve:
       - tabla_metricas: DataFrame con MAE/RMSE/MBE/rMBE/rRMSE/Pearson/R2/n
         por modelo, calculadas SOLO sobre test y ordenadas por RMSE (mejor primero).
+        Con `solo_diurno=True` (por defecto) se usan solo los instantes de
+        test con el sol sobre el horizonte (ver `mascara_diurna`); `n` es
+        el número de esos instantes.
       - predicciones_test: DataFrame con datetime, el valor real y la
         predicción de cada modelo sobre test (para graficar después).
       - modelos_entrenados: dict {nombre: modelo} ya entrenado, para
@@ -50,6 +77,8 @@ def entrenar_y_evaluar(train: pd.DataFrame, test: pd.DataFrame, target: str,
         target: y_test.values,
     })
 
+    dia = mascara_diurna(test, col_elevacion) if solo_diurno else np.ones(len(test), dtype=bool)
+
     modelos_entrenados = {}
     for nombre, modelo in modelos.items():
         modelo.fit(X_train, y_train)
@@ -59,7 +88,7 @@ def entrenar_y_evaluar(train: pd.DataFrame, test: pd.DataFrame, target: str,
         modelos_entrenados[nombre] = modelo
 
         fila = {"modelo": nombre}
-        fila.update(met.metricas_regresion(y_test, y_pred))
+        fila.update(met.metricas_regresion(y_test.to_numpy()[dia], np.asarray(y_pred)[dia]))
         filas_metricas.append(fila)
 
     tabla_metricas = pd.DataFrame(filas_metricas)

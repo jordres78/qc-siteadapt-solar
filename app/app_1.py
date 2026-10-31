@@ -474,6 +474,22 @@ def cargar_procesado(nombre: str) -> pd.DataFrame | None:
             df["datetime"] = df["datetime"].dt.tz_localize(None)
     return df
 
+def _filtrar_diurno(df_pred: pd.DataFrame, clave: str) -> pd.DataFrame:
+    """Deja solo los instantes de prueba con el sol sobre el horizonte
+    (elevación > 0°), los mismos con que se calculan las métricas de test.
+    Usa la columna `elevacion_solar` de las predicciones; si no existe
+    (archivos de una ejecución anterior), toma la elevación del conjunto
+    de prueba guardado, que tiene las mismas filas en el mismo orden."""
+    if "elevacion_solar" in df_pred.columns:
+        return df_pred[pd.to_numeric(df_pred["elevacion_solar"], errors="coerce") > 0]
+    _test = cargar_procesado(f"reconstruccion_{clave}_test.csv")
+    if (_test is not None and "elevation_solcast" in _test.columns and len(df_pred)
+            and int(df_pred.index.max()) < len(_test)):
+        _elev = pd.to_numeric(_test["elevation_solcast"], errors="coerce").to_numpy()
+        return df_pred[_elev[df_pred.index.to_numpy()] > 0]
+    return df_pred
+
+
 def _usabilidad_desde_flags(df: pd.DataFrame) -> pd.Series:
     """Reconstruye la usabilidad (OK / NO_USABLE) a partir de las columnas
     flag_* de un CSV *_qc_completo.csv, sin importar qcsolar. Aplica la misma
@@ -2196,7 +2212,7 @@ def fig_dispersion_1a1_plotly(clave: str, nombre: str):
     _ganador_col = _dfm_g.iloc[0]["modelo"]
     if _ganador_col not in _df_pred.columns:
         return None, None
-    _dfp = _df_pred.dropna(subset=[col_real, "Baseline (Solcast sin corregir)", _ganador_col])
+    _dfp = _filtrar_diurno(_df_pred, clave).dropna(subset=[col_real, "Baseline (Solcast sin corregir)", _ganador_col])
     if _dfp.empty:
         return None, None
 
@@ -2263,7 +2279,7 @@ def fig_ecdf_plotly(clave: str, nombre: str) -> "go.Figure | None":
     _ganador_col = _dfm_g.iloc[0]["modelo"]
     if _ganador_col not in _df_pred.columns:
         return None
-    _dfp = _df_pred.dropna(subset=[col_real, "Baseline (Solcast sin corregir)", _ganador_col])
+    _dfp = _filtrar_diurno(_df_pred, clave).dropna(subset=[col_real, "Baseline (Solcast sin corregir)", _ganador_col])
     if _dfp.empty:
         return None
 
@@ -2292,7 +2308,7 @@ def fig_ecdf_plotly(clave: str, nombre: str) -> "go.Figure | None":
         legend=dict(orientation="h", yanchor="top", y=-0.18, x=0),
         margin=dict(t=40, b=90, l=50, r=20),
         xaxis=dict(title="GHI [W/m²]", gridcolor="#eee", range=[0, _x_max_ecdf]),
-        yaxis=dict(title="ECDF (-)", gridcolor="#eee", range=[0.4, 1.0]),
+        yaxis=dict(title="ECDF (-)", gridcolor="#eee", range=[0, 1.0]),
     )
     return fig
 
@@ -2325,7 +2341,7 @@ def render_tab_reconstruccion(clave: str, nombre_display: str, color: str):
     if df_metricas is not None:
         _dfm_est = df_metricas[df_metricas["estacion"] == clave].copy()
         if not _dfm_est.empty:
-            subseccion("Ranking de modelos (conjunto de prueba)")
+            subseccion("Ranking de modelos (conjunto de prueba, horas con sol)")
             if _dfm_est["modelo_ganador"].any():
                 _ganador = _dfm_est.loc[_dfm_est["modelo_ganador"], "modelo"].iloc[0]
 
@@ -2770,7 +2786,10 @@ def _render_oe2_resumen_una_estacion(clave, nombre, color, df_resumen, df_metric
     if _ganador_col not in _df_pred.columns:
         st.info(f"La columna del modelo ganador ({_ganador_col}) no está en las predicciones de {nombre}.")
         return
-    _dfp = _df_pred.dropna(subset=[col_real, "Baseline (Solcast sin corregir)", _ganador_col])
+    _dfp_todo = _df_pred.dropna(subset=[col_real, "Baseline (Solcast sin corregir)", _ganador_col])
+    # Dispersión y ECDF con los mismos instantes diurnos de las métricas;
+    # la serie temporal usa todos los instantes para que se vea el ciclo diario.
+    _dfp = _filtrar_diurno(_dfp_todo, clave)
     if _dfp.empty:
         st.info(f"No hay filas válidas para graficar la dispersión de {nombre}.")
         return
@@ -2857,11 +2876,10 @@ def _render_oe2_resumen_una_estacion(clave, nombre, color, df_resumen, df_metric
         "rango; la curva roja, en cambio, se separa de la negra — esa "
         "separación *es* el error de distribución que corrige el "
         "site-adaptation (lo mismo que mide el indicador KSI).\n\n"
-        "El eje Y se recorta desde 0.4 (no desde 0) porque la parte baja de "
-        "la curva es sobre todo horas de irradiancia muy baja o nula (noche, "
-        "amanecer/atardecer), donde las 3 curvas casi siempre coinciden y no "
-        "aportan nada — así se ve mejor la zona donde sí hay diferencias "
-        "reales entre las series."
+        "La curva usa solo los instantes de prueba con el sol sobre el "
+        "horizonte, los mismos con que se calculan las métricas. Así las "
+        "horas de la noche, en las que las 3 series valen cero, no ocupan "
+        "la mitad inferior de la curva."
     )
 
     def _ecdf(valores):
@@ -2891,7 +2909,7 @@ def _render_oe2_resumen_una_estacion(clave, nombre, color, df_resumen, df_metric
         legend=dict(orientation="h", y=1.12, x=0),
         margin=dict(t=40, b=40, l=50, r=20),
         xaxis=dict(title="GHI [W/m²]", gridcolor="#eee", range=[0, _x_max_ecdf]),
-        yaxis=dict(title="ECDF (-)", gridcolor="#eee", range=[0.4, 1.0]),
+        yaxis=dict(title="ECDF (-)", gridcolor="#eee", range=[0, 1.0]),
     )
     st.plotly_chart(_fig_ecdf, use_container_width=True, key=f"oe2_resumen_ecdf_{clave}")
     panel_info(
@@ -2910,7 +2928,7 @@ def _render_oe2_resumen_una_estacion(clave, nombre, color, df_resumen, df_metric
     # visualmente si el modelo sigue los picos y valles reales mejor que el
     # dato sin corregir.
     subseccion(f"Serie temporal superpuesta — medido vs. crudo vs. adaptado ({nombre})")
-    _dfp_ts = _dfp.sort_values("datetime") if "datetime" in _dfp.columns else None
+    _dfp_ts = _dfp_todo.sort_values("datetime") if "datetime" in _dfp_todo.columns else None
     if _dfp_ts is not None and len(_dfp_ts) > 0:
         _fig_ts = go.Figure()
         _fig_ts.add_trace(go.Scattergl(
