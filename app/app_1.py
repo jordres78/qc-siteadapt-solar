@@ -5178,9 +5178,9 @@ def render_inicio_resumen():
         (mismo sitio, distinto año/estación terrestre) que:
         1. **Controla la calidad** de cada par Solcast + estación terrestre con un protocolo
            único y trazable.
-        2. **Corrige y completa** el dato de la estación terrestre usando Solcast —la única
-           fuente sin huecos temporales— como referencia: una *reconstrucción inversa* de
-           *site-adaptation*.
+        2. **Corrige y completa** el dato de la estación terrestre mediante *site-adaptation*,
+           con la serie satelital de Solcast como entrada, porque es la única fuente sin
+           huecos temporales.
         3. **Verifica** que esa corrección no introduzca artefactos no físicos, re-aplicando el
            mismo control de calidad al dato reconstruido.
 
@@ -5837,12 +5837,12 @@ def render_oe1_diagrama_flujo():
 
 def render_oe2_diagrama_flujo():
     """Renderiza la pestaña 'Diagrama de flujo' de OE2: pipeline de
-    reconstrucción inversa en Mermaid (emparejamiento, partición,
+    reconstrucción por site-adaptation en Mermaid (emparejamiento, partición,
     entrenamiento de los 9 modelos, selección del ganador y variantes
     total/selectiva de la serie corregida)."""
     seccion("Diagrama de flujo — OE2 (Site-Adaptation)")
     tooltip("""
-    Este diagrama sintetiza el pipeline de reconstrucción inversa, el mismo
+    Este diagrama sintetiza el pipeline de reconstrucción por site-adaptation, el mismo
     que se explica modelo por modelo en la pestaña **Marco metodológico** de
     este menú. El conjunto *aplicación* (todas las horas) y el *supervisado*
     (solo horas confiables) se separan desde el emparejamiento — por eso el

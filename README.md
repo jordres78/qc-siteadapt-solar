@@ -28,9 +28,8 @@ temporal, una satelital y una terrestre, y las procesa en este orden:
    Sobre el resultado aplica la regla de islas y calcula el porcentaje de dato
    utilizable.
 
-2. **Reconstrucción por *site-adaptation*.** Invierte el rol de referencia
-   habitual: usa la serie satelital, que no tiene interrupciones, para estimar
-   y completar el dato terrestre. Compara nueve modelos de cinco familias
+2. **Reconstrucción por *site-adaptation*.** Corrige y completa el dato
+   terrestre a partir de la serie satelital, que no tiene interrupciones. Compara nueve modelos de cinco familias
    (referencia sin corregir, regresión lineal simple y multivariable, mapeo
    cuantílico empírico, *Random Forest*, *Extra Trees*, *Gradient Boosting*,
    *XGBoost* y perceptrón multicapa) y selecciona, entre los modelos que no
