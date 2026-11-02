@@ -4191,6 +4191,31 @@ def render_oe3_mosaico_diagnostico():
         # Disposición vertical: cada mosaico ocupa casi todo el ancho
         _, _col_mos, _ = st.columns([1, 8, 1])
         with _col_mos:
+            # Leyenda visible de los seis paneles, con el mismo círculo verde
+            # que numera cada gráfica en los dos mosaicos
+            _PANELES_MOSAICO = [
+                "<i>GHI</i> frente a la elevación solar, con los límites físicos",
+                "Patrón día × hora de la <i>GHI</i> media",
+                "Envolvente de la <i>GHI</i> máxima en elevación y azimut",
+                "Índice de cielo despejado a lo largo del año",
+                "Dispersión frente a la serie satelital",
+                "Índice de claridad frente a la elevación",
+            ]
+            _circulo = ("display:inline-block; width:1.45em; height:1.45em; line-height:1.45em; "
+                        "border-radius:50%; background:#00923f; color:white; text-align:center; "
+                        "font-weight:700; font-size:0.8rem; margin-right:0.35rem")
+            _items = "".join(
+                f"<div style='white-space:nowrap'><span style='{_circulo}'>{i}</span>{t}</div>"
+                for i, t in enumerate(_PANELES_MOSAICO, 1))
+            st.markdown(
+                "<div style='font-size:0.92rem; margin:0.2rem 0 0.3rem 0'>"
+                "Cada número verde identifica la misma gráfica en los dos mosaicos. Arriba está "
+                "el dato crudo y abajo la serie reconstruida y verificada. Los puntos fuera de "
+                "los límites, los huecos y los valores de noche del primero deben desaparecer "
+                "en el segundo.</div>"
+                "<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); "
+                f"gap:0.35rem 1.2rem; font-size:0.88rem; margin:0 0 0.7rem 0'>{_items}</div>",
+                unsafe_allow_html=True)
             st.image(_png_a, width="stretch")
             st.markdown(
                 "<div style='display:flex; align-items:center; justify-content:center; "
