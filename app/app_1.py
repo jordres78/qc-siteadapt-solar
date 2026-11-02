@@ -89,6 +89,15 @@ DIR_PROCESSED = ROOT / "data" / "processed"
 import sys
 sys.path.insert(0, str(ROOT / "src"))
 
+# Mosaico de diagnóstico antes y después (OE3). Es la otra excepción a la
+# regla de solo leer CSV: qcsolar.mosaico solo usa numpy, pandas y
+# matplotlib, así que funciona también en modo de solo lectura.
+try:
+    from qcsolar.mosaico import series_antes_despues, png_mosaico, conteos_mosaico
+    MOSAICO_DISPONIBLE = True
+except Exception:  # matplotlib ausente o paquete incompleto
+    MOSAICO_DISPONIBLE = False
+
 QCSOLAR_DISPONIBLE = True
 QCSOLAR_ERROR = None
 try:
@@ -4091,6 +4100,26 @@ def _fig_cierre_radiativo_solcast(df_solcast: "pd.DataFrame | None") -> "go.Figu
     return fig
 
 
+_NOMBRE_MOSAICO = {"udenar": "Udenar 2023", CLAVE_UDENAR_EST: "Udenar 2025"}
+
+
+@st.cache_data(show_spinner="Dibujando los mosaicos de diagnóstico...")
+def _mosaico_antes_despues(clave: str, variante: str):
+    """Devuelve (png_antes, png_despues, conteos_antes, conteos_despues)
+    para una estación, o cuatro None si faltan datos. El dato crudo se
+    promedia a 5 min, la resolución de la fuente satelital."""
+    if not MOSAICO_DISPONIBLE:
+        return None, None, None, None
+    try:
+        antes, despues = series_antes_despues(DIR_PROCESSED, clave, variante)
+    except (FileNotFoundError, KeyError, ValueError):
+        return None, None, None, None
+    nombre = _NOMBRE_MOSAICO.get(clave, clave)
+    png_a = png_mosaico(antes, f"{nombre}: dato crudo (promedio de 5 min)")
+    png_d = png_mosaico(despues, f"{nombre}: serie reconstruida y verificada (5 min)")
+    return png_a, png_d, conteos_mosaico(antes), conteos_mosaico(despues)
+
+
 def render_oe3_mosaico_diagnostico():
     """Mosaico de diagnóstico por estación, inspirado en el multiplot de
     referencia para QC experto de radiación solar (solar_multiplot).
@@ -4128,6 +4157,61 @@ def render_oe3_mosaico_diagnostico():
     _fuente_mos = st.selectbox("Estación terrestre a mostrar junto a Solcast:",
                                 list(_ESTACIONES_OE3.keys()), key="oe3_mosaico_fuente")
     _clave_mos, _ = _ESTACIONES_OE3[_fuente_mos]
+
+    # --- Mosaico antes y después (seis gráficas de diagnóstico) ---
+    subseccion(f"{_fuente_mos} — antes y después del site-adaptation y del nuevo control de calidad")
+    tooltip("""
+    Las mismas seis gráficas de diagnóstico del control de calidad, primero con
+    el **dato crudo** y después con la **serie reconstruida y verificada**, con
+    los mismos ejes y escalas de color para comparar panel a panel.
+
+    1. **GHI frente a la elevación solar.** Los puntos sobre la curva roja superan
+       el límite físico BSRN y los de la izquierda del cero son irradiancia con el
+       sol bajo el horizonte.
+    2. **Patrón día × hora.** Debe verse una banda diurna limpia. Las franjas
+       blancas son huecos y el color fuera de la banda delata registros nocturnos.
+    3. **Envolvente elevación–azimut.** Dibuja el doble arco del sol cerca del
+       ecuador. Valores altos con el sol bajo indican error.
+    4. **Índice de cielo despejado.** La nube de puntos debe quedar bajo 1,35.
+    5. **Dispersión frente al satélite.** Los puntos deben seguir la diagonal.
+    6. **Índice de claridad.** Un Kt mayor que uno con el sol bajo no es
+       físicamente posible.
+
+    Las dos versiones se comparan a 5 min, la resolución de la fuente
+    satelital. Para Udenar 2025, que se mide cada minuto, el dato crudo es el
+    promedio de 5 min de todos los registros, sin filtrar. La serie final es la
+    variante elegida en los instantes que superan el nuevo control de calidad.
+    """)
+    _var_mos = st.radio("Variante de la serie reconstruida:", ["selectiva", "total"],
+                        horizontal=True, key="oe3_mosaico_variante")
+    _png_a, _png_d, _cnt_a, _cnt_d = _mosaico_antes_despues(_clave_mos, _var_mos)
+    if _png_a is None:
+        st.info(f"No hay datos suficientes de {_fuente_mos} para el mosaico antes y después.")
+    else:
+        # Disposición vertical: cada mosaico ocupa casi todo el ancho
+        _, _col_mos, _ = st.columns([1, 8, 1])
+        with _col_mos:
+            st.image(_png_a, width="stretch")
+            st.markdown(
+                "<div style='display:flex; align-items:center; justify-content:center; "
+                "gap:1rem; margin:0.4rem 0 0.8rem 0; padding:0.6rem 1rem; "
+                f"border-top:2px solid {C_GOLD}; border-bottom:2px solid {C_GOLD}'>"
+                f"<span style='font-size:2.2rem; line-height:1; color:{C_GOLD}'>&#11015;</span>"
+                "<span style='font-size:1.05rem; font-weight:600'>Reconstrucción por "
+                "<i>site-adaptation</i> y nuevo control de calidad</span>"
+                f"<span style='font-size:2.2rem; line-height:1; color:{C_GOLD}'>&#11015;</span>"
+                "</div>",
+                unsafe_allow_html=True)
+            st.image(_png_d, width="stretch")
+        _fmt = lambda v: f"{v:,}".replace(",", ".")
+        panel_info(
+            f"Registros de 5 min con dato, antes {_fmt(_cnt_a['registros'])} y después "
+            f"{_fmt(_cnt_d['registros'])}. Nocturnos con GHI mayor a 10 W/m², "
+            f"{_fmt(_cnt_a['noche_mayor_10'])} antes y {_fmt(_cnt_d['noche_mayor_10'])} después. "
+            f"Sobre el límite físico, {_fmt(_cnt_a['sobre_limite_fisico'])} antes y "
+            f"{_fmt(_cnt_d['sobre_limite_fisico'])} después. Con CSI mayor a 1,35, "
+            f"{_fmt(_cnt_a['csi_mayor_135'])} antes y {_fmt(_cnt_d['csi_mayor_135'])} después."
+        )
 
     _df_sa_mos = _construir_df_etapa_diagnostico(_clave_mos, "site_adapt")
     _dfs4_mos = (
